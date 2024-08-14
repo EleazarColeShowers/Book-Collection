@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
@@ -35,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,8 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -96,6 +93,16 @@ fun BookApp(context: Context){
                 navController.navigate("home")
             }
         )}
+        composable("EditBook/{bookId}") { backStackEntry ->
+            val bookId = backStackEntry.arguments?.getString("bookId")?.toLongOrNull()
+            if (bookId != null) {
+                EditBookPage(
+                    bookDao = bookDao,
+                    bookId = bookId,
+                    onBookSaved = { navController.navigate("home") }
+                )
+            }
+        }
     }
 }
 
@@ -108,7 +115,7 @@ fun BookPage(navController: NavController, bookDao: BookDao){
         ) {
             UserBar()
             Spacer(modifier = Modifier.height(30.dp))
-            BookList(bookDao = bookDao)
+            BookList(bookDao = bookDao, navController)
             Spacer(modifier = Modifier.weight(1f))
         }
         AddBook(
@@ -160,7 +167,10 @@ fun UserBar(){
 }
 
 @Composable
-fun BookList(bookDao: BookDao){
+fun BookList(
+    bookDao: BookDao,
+    navController: NavController
+){
     val books by bookDao.getAllBooks().collectAsState(initial = emptyList())
     var showPopup by remember { mutableStateOf(false) }
     var selectedBook by remember { mutableStateOf<BookEntity?>(null) }
@@ -207,18 +217,35 @@ fun BookList(bookDao: BookDao){
     if (showPopup && selectedBook != null) {
         AlertDialog(
             onDismissRequest = { showPopup = false },
-            title = { Text(text = selectedBook?.title ?: "Unknown Title") },
+            title = { Text(text = "Manage Book") },
             text = {
                 Column {
-                    Text(text = "Author: ${selectedBook?.author ?: "Unknown Author"}")
-                    Text(text = "Genre: ${selectedBook?.genre ?: "Unknown Genre"}")
+                    Text(text = "Would you like to edit or  delete ${selectedBook?.title} by ${selectedBook?.author}")
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showPopup = false }) {
-                    Text("OK")
+                TextButton(
+                    onClick = {
+                        showPopup = false
+                        CoroutineScope(Dispatchers.Main).launch{
+                            bookDao.deleteBook(selectedBook!!)
+                        }
+                    }
+                ) {
+                    Text("Delete")
                 }
             },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPopup = false
+                        navController.navigate("EditBook/${selectedBook?.id}")
+                    }
+                ) {
+                    Text("Edit")
+                }
+            }
+
         )
     }
 }
@@ -240,10 +267,25 @@ fun AddBook(
 @Composable
 fun AddBookPage(
     bookDao: BookDao,
+    bookId: Long? = null,
     onBookSaved:()-> Unit){
+    val context= LocalContext.current
     var authorName by remember { mutableStateOf("") }
     var bookTitle by remember { mutableStateOf("") }
     var genre by remember{ mutableStateOf("") }
+
+    if (bookId != null) {
+        // Fetch the book by its ID and prefill the fields
+        val bookToEdit = bookDao.getBookById(bookId).collectAsState(initial = null).value
+        LaunchedEffect(bookToEdit) {
+            if (bookToEdit != null) {
+                authorName = bookToEdit.author
+                bookTitle = bookToEdit.title
+                genre = bookToEdit.genre
+            }
+        }
+    }
+
 
     Column (
         modifier = Modifier
@@ -299,5 +341,78 @@ fun AddBookPage(
 
 }
 
+@Composable
+fun EditBookPage(
+    bookDao: BookDao,
+    bookId: Long,
+    onBookSaved: () -> Unit
+) {
+    val context = LocalContext.current
+    var authorName by remember { mutableStateOf("") }
+    var bookTitle by remember { mutableStateOf("") }
+    var genre by remember { mutableStateOf("") }
+
+    // Load the book details when the page is first composed
+    LaunchedEffect(bookId) {
+        bookDao.getBookById(bookId).collect { bookToEdit ->
+            authorName = bookToEdit.author
+            bookTitle = bookToEdit.title
+            genre = bookToEdit.genre
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(15.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.Top) // Space items and center them vertically
+    ) {
+        Spacer(modifier = Modifier.padding(top = 50.dp))
+
+        OutlinedTextField(
+            value = authorName,
+            onValueChange = { authorName = it },
+            label = { Text("Author") },
+            modifier = Modifier
+                .fillMaxWidth(0.9f) // Increase width to 90% of the parent width
+        )
+
+        OutlinedTextField(
+            value = bookTitle,
+            onValueChange = { bookTitle = it },
+            label = { Text("Book Title") },
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+        )
+
+        OutlinedTextField(
+            value = genre,
+            onValueChange = { genre = it },
+            label = { Text("Genre") },
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+        )
+
+        Spacer(modifier = Modifier)
+
+        ExtendedFloatingActionButton(
+            onClick = {
+                CoroutineScope(Dispatchers.Main).launch {
+                    val updatedBook = BookEntity(
+                        id = bookId.toInt(),
+                        author = authorName,
+                        title = bookTitle,
+                        genre = genre
+                    )
+                    bookDao.updateBook(updatedBook)
+                    onBookSaved()
+                }
+            },
+            icon = { Icon(Icons.Filled.Edit, "Extended floating action button.") },
+            text = { Text(text = "Save") },
+        )
+    }
+}
 
 
