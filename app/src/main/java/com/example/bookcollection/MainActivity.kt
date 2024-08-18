@@ -7,7 +7,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,14 +17,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
@@ -33,9 +33,10 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -54,20 +55,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
-//import androidx.compose.ui.node.CanFocusChecker.end
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -91,7 +85,7 @@ class MainActivity : ComponentActivity() {
             BookCollectionTheme {
                 Column(
                     modifier = Modifier
-//                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(rememberScrollState())
                         .padding(15.dp)
                 ) {
                     val context= LocalContext.current
@@ -147,7 +141,6 @@ fun BookPage(navController: NavController, bookDao: BookDao){
                     searchQuery.value = query
                 },
                 onSearchClicked = {
-                    // Perform search action
                     println("Search for: ${searchQuery.value}")
                 }
                 )
@@ -155,13 +148,16 @@ fun BookPage(navController: NavController, bookDao: BookDao){
             Spacer(modifier = Modifier.height(30.dp))
             BookList(bookDao = bookDao, navController, searchQuery.value)
             Spacer(modifier = Modifier.weight(1f))
+
         }
         AddBook(
             modifier = Modifier
-                .align(Alignment.BottomEnd),
+                .align(Alignment.BottomEnd)
+                .padding(10.dp),
             navController
 
         )
+        Spacer(modifier = Modifier.height(30.dp))
     }
 }
 
@@ -176,7 +172,7 @@ fun UserBar(){
         ) {
         Column {
             Text(
-                text = "Hi Fela",
+                text = "Hi There!",
                 style = TextStyle(
                     fontSize = 30.sp,
                     fontWeight = FontWeight.Bold
@@ -224,48 +220,65 @@ fun BookList(
         books
     }
 
+    val groupedBooks = filteredBooks.groupBy { it.genre }
 
-    LazyRow {
-        items(filteredBooks){book ->
-            Card(
-                colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                modifier = Modifier
-                    .size(width = 110.dp, height = 130.dp)
-                    .padding(end = 10.dp),
-                onClick = {
-                    selectedBook = book
-                    showPopup = true
-                }
+    Column {
+        // Loop through each genre group
+        groupedBooks.forEach { (genre, booksInGenre) ->
+            Text(
+                text = genre,
+                style = TextStyle(
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                modifier = Modifier.padding(8.dp)
+            )
 
+            LazyRow(
+                modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Column(modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(5.dp)){
-                    Text(
-                        text = book.title,
-                        style = TextStyle(
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = book.author,
-                        style = TextStyle(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Light
+                items(booksInGenre) { book ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         ),
-
-                    )
-
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        modifier = Modifier
+                            .size(width = 110.dp, height = 130.dp)
+                            .padding(end = 10.dp),
+                        onClick = {
+                            selectedBook = book
+                            showPopup = true
+                        }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(5.dp)
+                        ) {
+                            Text(
+                                text = book.title,
+                                style = TextStyle(
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = book.author,
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Light
+                                ),
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+
     if (showPopup && selectedBook != null) {
         AlertDialog(
             onDismissRequest = { showPopup = false },
@@ -316,6 +329,7 @@ fun AddBook(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddBookPage(
     bookDao: BookDao,
@@ -325,19 +339,8 @@ fun AddBookPage(
     var authorName by remember { mutableStateOf("") }
     var bookTitle by remember { mutableStateOf("") }
     var genre by remember{ mutableStateOf("") }
-
-    if (bookId != null) {
-        // Fetch the book by its ID and prefill the fields
-        val bookToEdit = bookDao.getBookById(bookId).collectAsState(initial = null).value
-        LaunchedEffect(bookToEdit) {
-            if (bookToEdit != null) {
-                authorName = bookToEdit.author
-                bookTitle = bookToEdit.title
-                genre = bookToEdit.genre
-            }
-        }
-    }
-
+    var expanded by remember { mutableStateOf(false) }
+    val genres = listOf("Fantasy", "Comedy", "Romance", "Mystery")
 
     Column (
         modifier = Modifier
@@ -360,16 +363,39 @@ fun AddBookPage(
             onValueChange = { authorName = it },
             label = { Text("Author") },
             modifier = Modifier
-                .fillMaxWidth(0.9f) // Increase width to 90% of the parent width
-        )
-
-        OutlinedTextField(
-            value = genre,
-            onValueChange = { genre = it },
-            label = { Text("Genre") },
-            modifier = Modifier
                 .fillMaxWidth(0.9f)
         )
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                value = genre,
+                onValueChange = { genre = it },
+                label = { Text("Genre") },
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(0.9f)
+            )
+
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                genres.forEach { selectedGenre ->
+                    DropdownMenuItem(
+                        text = { Text(selectedGenre) },
+                        onClick = {
+                            genre = selectedGenre
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier)
 
         ExtendedFloatingActionButton(
@@ -381,7 +407,6 @@ fun AddBookPage(
                 )
                 CoroutineScope(Dispatchers.Main).launch {
                     bookDao.insertBook(newBook)
-                    // Navigate back or perform an action after saving
                     onBookSaved()
                 }
             },
@@ -392,6 +417,7 @@ fun AddBookPage(
 
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditBookPage(
     bookDao: BookDao,
@@ -402,6 +428,9 @@ fun EditBookPage(
     var authorName by remember { mutableStateOf("") }
     var bookTitle by remember { mutableStateOf("") }
     var genre by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    val genres = listOf("Fantasy", "Comedy", "Romance", "Mystery")
+
 
     // Load the book details when the page is first composed
     LaunchedEffect(bookId) {
@@ -439,14 +468,36 @@ fun EditBookPage(
         )
 
 
-        OutlinedTextField(
-            value = genre,
-            onValueChange = { genre = it },
-            label = { Text("Genre") },
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-        )
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                value = genre,
+                onValueChange = { genre = it },
+                label = { Text("Genre") },
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(0.9f)
+            )
 
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                genres.forEach { selectedGenre ->
+                    DropdownMenuItem(
+                        text = { Text(selectedGenre) },
+                        onClick = {
+                            genre = selectedGenre
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier)
 
         ExtendedFloatingActionButton(
@@ -494,7 +545,7 @@ fun SearchBar(
             },
             modifier = Modifier
                 .weight(1f)
-                .padding(end= 8.dp),
+                .padding(end = 8.dp),
         singleLine = true,
         textStyle = TextStyle(
             color = MaterialTheme.colorScheme.onSurface,
